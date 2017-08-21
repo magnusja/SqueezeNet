@@ -18,14 +18,14 @@ def train(epoch, data, squeeze_net, criterion, optimizer, args):
     progress_bar = tqdm(iter(train_set))
     moving_loss = 0
 
-    squeeze_net.train(True)
+    squeeze_net.train()
     for x, y in progress_bar:
         x, y = Variable(x), Variable(y)
 
         if args.cuda:
             x, y = Variable(x).cuda(), Variable(y).cuda()
 
-        output = squeeze_net(x, y)
+        output = squeeze_net(x)
         loss = criterion(output, y)
         squeeze_net.zero_grad()
         loss.backward()
@@ -40,6 +40,23 @@ def train(epoch, data, squeeze_net, criterion, optimizer, args):
             'Epoch: {}; Loss: {:.5f}; Avg: {:.5f}'.format(epoch + 1, loss.data[0], moving_loss))
 
 
+def valid(data, squeeze_net, args):
+    valid_set = DataLoader(data, batch_size=args.batch_size, num_workers=4, shuffle=True)
+    squeeze_net.eval()
+
+    acc = 0
+    for x, y in tqdm(valid_set):
+        x, y = Variable(x), Variable(y)
+
+        if args.cuda:
+            x, y = Variable(x).cuda(), Variable(y).cuda()
+
+        output = squeeze_net(x)
+        acc += y.eq(output > 0.85).sum() / y.size()[0]
+
+    print('Validation accuracy: {}'.format(acc))
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Train SqueezeNet with PyTorch.')
     parser.add_argument('--batch-size', action='store', type=int, dest='batch_size', default=256)
@@ -52,7 +69,7 @@ def parse_args():
 def main():
     args = parse_args()
 
-    squeeze_net = SqueezeNet(10)
+    squeeze_net = SqueezeNet(10, input_channels=1)
     if args.cuda:
         squeeze_net = squeeze_net.cuda()
 
@@ -61,18 +78,21 @@ def main():
 
     train_data = datasets.MNIST('./mnist_data', train=True, download=True,
                                 transform=transforms.Compose([
+                                    transforms.Scale(224),
                                     transforms.ToTensor(),
                                     transforms.Normalize((0.1307,), (0.3081,))
                                 ]))
 
     valid_data = datasets.MNIST('./mnist_data', train=False, download=True,
                                 transform=transforms.Compose([
+                                    transforms.Scale(224),
                                     transforms.ToTensor(),
                                     transforms.Normalize((0.1307,), (0.3081,))
                                 ]))
 
     for epoch in trange(args.epochs):
         train(epoch, train_data, squeeze_net, criterion, optimizer, args)
+        valid(valid_data, squeeze_net, args)
 
 
 if __name__ == '__main__':
