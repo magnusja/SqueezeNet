@@ -17,7 +17,7 @@ class Fire(nn.Module):
         )
 
         self.expand_3x3 = nn.Sequential(
-            nn.Conv2d(num_squeeze, num_expand_3x3, kernel_size=3),
+            nn.Conv2d(num_squeeze, num_expand_3x3, kernel_size=3, padding=1),
             nn.ReLU()
         )
 
@@ -26,7 +26,7 @@ class Fire(nn.Module):
         expanded = torch.cat([
             self.expand_1x1(squeezed),
             self.expand_3x3(squeezed)
-        ])
+        ], dim=1)
         return expanded
 
 
@@ -37,16 +37,16 @@ class SqueezeNet(nn.Module):
 
         self.model = nn.Sequential(
             nn.Conv2d(input_channels, 96, kernel_size=7, stride=2),
-            nn.MaxPool2d(3, stride=2),
+            nn.MaxPool2d(3, stride=2, ceil_mode=True),
             Fire(96, 16, 64, 64),
             Fire(128, 16, 64, 64),
             Fire(128, 32, 128, 128),
-            nn.MaxPool2d(3, stride=2),
+            nn.MaxPool2d(3, stride=2, ceil_mode=True),
             Fire(256, 32, 128, 128),
             Fire(256, 48, 192, 192),
             Fire(384, 48, 192, 192),
             Fire(384, 64, 256, 256),
-            nn.MaxPool2d(3, stride=2),
+            nn.MaxPool2d(3, stride=2, ceil_mode=True),
             Fire(512, 64, 256, 256),
             nn.Dropout(),
             nn.Conv2d(512, num_classes, 1),
@@ -60,4 +60,5 @@ class SqueezeNet(nn.Module):
                     m.bias.data.zero_()
 
     def forward(self, x):
-        return self.model(x)
+        pred = self.model(x)
+        return pred.view(pred.size()[0], -1)
